@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import chatIconSvg from "../../assets/efadf3008368f7aa7bd42926a8fa2580aad62e36.png";
+import chatIconUrl from "../../assets/chat-bot-icon-square.svg";
 
 interface ChatButtonProps {
   onClick: () => void;
@@ -8,8 +8,6 @@ interface ChatButtonProps {
 }
 
 export function ChatButton({ onClick, isThinking, hasNotification }: ChatButtonProps) {
-  console.log('ChatButton render:', { isThinking, hasNotification }); // Debug
-  
   return (
     <motion.button
       onClick={onClick}
@@ -20,14 +18,17 @@ export function ChatButton({ onClick, isThinking, hasNotification }: ChatButtonP
       {/* Pulsujący efekt podczas myślenia - świecący pierścień wokół ikony */}
       {isThinking && (
         <motion.div
-          className="absolute w-9 h-9 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg"
-          style={{ backgroundColor: '#1868DB' }}
+          className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-lg"
+          style={{
+            backgroundColor: "#1868DB",
+            boxShadow: "0 0 12px rgba(24, 104, 219, 0.35)",
+          }}
           animate={{
-            opacity: [0.2, 0.4, 0.2],
-            scale: [1, 1.05, 1],
+            opacity: [0.28, 0.52, 0.28],
+            scale: [1, 1.1, 1],
           }}
           transition={{
-            duration: 2,
+            duration: 1.75,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -35,7 +36,7 @@ export function ChatButton({ onClick, isThinking, hasNotification }: ChatButtonP
       )}
 
       {/* Ikona chatbota */}
-      <img src={chatIconSvg} alt="AI Chat" className="w-8 h-8 relative z-10 rounded-lg" />
+      <img src={chatIconUrl} alt="AI Chat" className="h-8 w-8 relative z-10 rounded-lg object-contain" />
 
       {/* Badge notyfikacji - UPROSZCZONA WERSJA */}
       {hasNotification && (
