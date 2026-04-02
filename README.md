@@ -9,11 +9,18 @@ Prototype UI for an AI chat assistant (Vite, React, Tailwind). The original desi
 
 ## GitHub Pages (live demo)
 
-After you enable Pages once in the repo, each push to `main` deploys the built app.
+Each push to `main` runs **Deploy to GitHub Pages** and publishes `dist/`.  
+**You must turn Pages on once**, otherwise the deploy job fails with **404** (“Failed to create deployment”).
 
-1. GitHub repo → **Settings** → **Pages** → **Build and deployment** → **Source:** **GitHub Actions**.
-2. Push this branch; workflow **Deploy to GitHub Pages** builds with `GITHUB_PAGES=true` and publishes `dist/`.
-3. Public URL (project site): **https://karolinachrzanowska-ux.github.io/BigPicture/**
+### One-time setup (required)
+
+1. Open **https://github.com/karolinachrzanowska-ux/BigPicture/settings/pages**
+2. Under **Build and deployment** → **Source**, choose **GitHub Actions** (not “Deploy from a branch”).
+3. Save if prompted, then run the workflow again: **Actions** → **Deploy to GitHub Pages** → **Run workflow**, or push any commit to `main`.
+
+### Live URL
+
+**https://karolinachrzanowska-ux.github.io/BigPicture/** (after a successful run).
 
 Local preview with the same URL shape as GitHub Pages (`/BigPicture/`):
 
