@@ -1,0 +1,754 @@
+import { useState, useRef, useEffect } from "react";
+import { Rnd } from "react-rnd";
+import { Send, Edit2, Share2, Trash2, Coins } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { createPortal } from "react-dom";
+import aiAvatarIcon from "../../imports/Appfire_AI_Logo.png";
+import iconPlusSvg from "../../imports/icon-plus.svg?raw";
+import iconChatHistorySvg from "../../imports/icon-chat-history.svg?raw";
+import iconOpenInNewTabSvg from "../../imports/icon-open-in-new-tab.svg?raw";
+import iconMinimizeSvg from "../../imports/icon-minimize.svg?raw";
+import iconMoreOptionsSvg from "../../imports/icon-more-options.svg?raw";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { Tooltip } from "./Tooltip";
+
+const headerToolbarIconClass =
+  "inline-flex size-8 shrink-0 [&>svg]:block [&>svg]:size-full [&_path]:fill-current";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  tokens?: number;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  totalTokens: number;
+  createdAt: Date;
+}
+
+interface ChatOverlayProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onThinkingChange: (isThinking: boolean) => void;
+  onNewResponse: () => void;
+}
+
+export function ChatOverlay({ isOpen, onClose, onThinkingChange, onNewResponse }: ChatOverlayProps) {
+  const [conversations, setConversations] = useState<Conversation[]>([
+    {
+      id: "1",
+      title: "Conversation 1",
+      messages: [
+        {
+          id: "1",
+          role: "assistant",
+          content: "Hi! I'm Appfire AI. How can I help you?",
+        },
+      ],
+      totalTokens: 12,
+      createdAt: new Date(),
+    },
+  ]);
+  const [activeConversationId, setActiveConversationId] = useState("1");
+  const [inputValue, setInputValue] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+  const activeConversation = conversations.find((c) => c.id === activeConversationId);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeConversation?.messages]);
+
+  // Zamknij menu po kliknięciu poza nim
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        openMenuId &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        !Object.values(menuButtonRefs.current).some((btn) => btn?.contains(e.target as Node))
+      ) {
+        handleCloseMenu();
+        setMenuPosition(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [openMenuId]);
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || !activeConversation) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: inputValue.trim(),
+      tokens: Math.ceil(inputValue.trim().split(" ").length * 1.3),
+    };
+
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === activeConversationId
+          ? {
+              ...conv,
+              messages: [...conv.messages, userMessage],
+              totalTokens: conv.totalTokens + (userMessage.tokens || 0),
+            }
+          : conv
+      )
+    );
+
+    setInputValue("");
+    setIsThinking(true);
+    onThinkingChange(true);
+
+    // Symulacja odpowiedzi AI
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content:
+          "This is a prototype only. It cannot understand your question or provide real answers — those would come from a connected service in a finished product.",
+        tokens: 18,
+      };
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: [...conv.messages, assistantMessage],
+                totalTokens: conv.totalTokens + (assistantMessage.tokens || 0),
+              }
+            : conv
+        )
+      );
+
+      setIsThinking(false);
+      onThinkingChange(false);
+      console.log('ChatOverlay: Calling onNewResponse()');
+      onNewResponse();
+    }, 2000);
+  };
+
+  const handleNewConversation = () => {
+    const newConv: Conversation = {
+      id: Date.now().toString(),
+      title: `Conversation ${conversations.length + 1}`,
+      messages: [
+        {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "Hi! I'm Appfire AI. How can I help you?",
+        },
+      ],
+      totalTokens: 12,
+      createdAt: new Date(),
+    };
+    setConversations([...conversations, newConv]);
+    setActiveConversationId(newConv.id);
+    setShowHistory(false);
+  };
+
+  const handleDeleteConversation = (id: string) => {
+    setConversations((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((c) => c.id !== id);
+      setActiveConversationId((cur) => (cur === id ? next[0]?.id ?? "" : cur));
+      return next;
+    });
+  };
+
+  const handleEditConversation = (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (conv) {
+      setEditingConvId(id);
+      setEditingTitle(conv.title);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (editingConvId && editingTitle) {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === editingConvId
+            ? {
+                ...conv,
+                title: editingTitle,
+              }
+            : conv
+        )
+      );
+      setEditingConvId(null);
+      setEditingTitle("");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingConvId(null);
+    setEditingTitle("");
+  };
+
+  const handleOpenMenu = (id: string | null) => {
+    setOpenMenuId(id);
+  };
+
+  const handleCloseMenu = () => {
+    setOpenMenuId(null);
+  };
+
+  const handleShareConversation = (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (conv) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("conv", id);
+      
+      // Fallback method for copying to clipboard
+      const textArea = document.createElement("textarea");
+      textArea.value = url.toString();
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        textArea.remove();
+        alert("Conversation link copied to clipboard!");
+      } catch (err) {
+        textArea.remove();
+        alert(`Copy this link: ${url.toString()}`);
+      }
+    }
+  };
+
+  const handleOpenInNewPage = () => {
+    // Otwiera chatbota w nowym oknie/zakładce
+    const newWindow = window.open(window.location.href, '_blank', 'width=450,height=600');
+    if (newWindow) {
+      newWindow.focus();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+      <Rnd
+        default={{
+          x: window.innerWidth - 450 - 24,
+          y: 76, // 24px (top-6) + 16px (padding w przycisku) + 32px (wysokość ikony) + 4px (odstęp)
+          width: 450,
+          height: 600,
+        }}
+        minWidth={350}
+        minHeight={400}
+        bounds="window"
+        className="pointer-events-auto"
+        dragHandleClassName="chat-drag-handle"
+        enableUserSelectHack={false}
+        cancel="input, button, textarea, .no-drag"
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="w-full h-full bg-white rounded-lg shadow-lg border border-gray-300 flex flex-col overflow-hidden"
+        >
+          {/* Header */}
+          <div className="chat-drag-handle bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between cursor-move">
+            <div className="flex items-center gap-3">
+              
+              <h2 className="text-sm font-semibold" style={{ color: '#292A2E' }}>AI Assistant</h2>
+              {!showHistory && activeConversation && (
+                <>
+                  
+                  
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Tooltip content="New conversation">
+                <button
+                  onClick={handleNewConversation}
+                  className="flex items-center justify-center rounded transition-colors"
+                  style={{ 
+                    backgroundColor: 'rgba(255,255,255,0)',
+                    color: '#505258',
+                    width: '32px',
+                    height: '32px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0)'}
+                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#DFE1E6'}
+                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                >
+                  <span
+                    className={headerToolbarIconClass}
+                    aria-hidden
+                    dangerouslySetInnerHTML={{ __html: iconPlusSvg }}
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip content="Chat history">
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center justify-center rounded transition-colors"
+                  style={{ 
+                    backgroundColor: showHistory ? '#E3F2FD' : 'rgba(255,255,255,0)',
+                    color: showHistory ? '#1868DB' : '#505258',
+                    width: '32px',
+                    height: '32px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = showHistory ? '#BBDEFB' : '#EBECF0';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = showHistory ? '#E3F2FD' : 'rgba(255,255,255,0)';
+                    e.currentTarget.style.color = showHistory ? '#1868DB' : '#505258';
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.style.backgroundColor = showHistory ? '#90CAF9' : '#DFE1E6';
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.backgroundColor = showHistory ? '#BBDEFB' : '#EBECF0';
+                  }}
+                >
+                  <span
+                    className={headerToolbarIconClass}
+                    aria-hidden
+                    dangerouslySetInnerHTML={{ __html: iconChatHistorySvg }}
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip content="Open in new tab">
+                <button
+                  onClick={handleOpenInNewPage}
+                  className="flex items-center justify-center rounded transition-colors"
+                  style={{ 
+                    backgroundColor: 'rgba(255,255,255,0)',
+                    color: '#505258',
+                    width: '32px',
+                    height: '32px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0)'}
+                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#DFE1E6'}
+                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                >
+                  <span
+                    className={headerToolbarIconClass}
+                    aria-hidden
+                    dangerouslySetInnerHTML={{ __html: iconOpenInNewTabSvg }}
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip content="Minimize">
+                <button
+                  onClick={onClose}
+                  className="flex items-center justify-center rounded transition-colors"
+                  style={{ 
+                    backgroundColor: 'rgba(255,255,255,0)',
+                    color: '#505258',
+                    width: '32px',
+                    height: '32px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0)'}
+                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#DFE1E6'}
+                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                >
+                  <span
+                    className={headerToolbarIconClass}
+                    aria-hidden
+                    dangerouslySetInnerHTML={{ __html: iconMinimizeSvg }}
+                  />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+
+          {showHistory ? (
+            <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+              <div className="p-4 space-y-2 flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-base font-semibold text-gray-700">Chat history</span>
+                </div>
+                {conversations.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className={`relative flex items-center justify-between p-2 rounded-lg transition-colors ${
+                        conv.id === activeConversationId
+                          ? "text-gray-900"
+                          : "bg-white hover:bg-gray-100"
+                      }`}
+                      style={conv.id === activeConversationId ? { backgroundColor: '#E3F2FD' } : {}}
+                    >
+                      {editingConvId === conv.id ? (
+                        <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyPress={(e) => {
+                              if (e.key === "Enter") handleSaveEdit();
+                              if (e.key === "Escape") handleCancelEdit();
+                            }}
+                            className="flex-1 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2"
+                            style={{ borderColor: '#90CAF9', '--tw-ring-color': '#1868DB' } as React.CSSProperties}
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleSaveEdit}
+                            className="px-2 py-1 text-xs text-white rounded transition-colors"
+                            style={{ backgroundColor: '#1868DB' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0D47A1'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1868DB'}
+                            onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#0747A6'}
+                            onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#0D47A1'}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-2 py-1 text-xs rounded transition-colors"
+                            style={{ 
+                              backgroundColor: 'transparent',
+                              color: '#292A2E'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#DFE1E6'}
+                            onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            className="flex-1 min-w-0 pr-2 cursor-pointer"
+                            onClick={() => {
+                              setActiveConversationId(conv.id);
+                              setShowHistory(false);
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <Tooltip content={conv.title}>
+                                <span className="text-sm truncate block">{conv.title}</span>
+                              </Tooltip>
+                              <span className="text-xs text-gray-400 whitespace-nowrap">
+                                {new Date(conv.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Menu z trzema kropkami */}
+                          <div className="relative flex-shrink-0">
+                            <button
+                              ref={(el) => (menuButtonRefs.current[conv.id] = el)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const buttonRect = e.currentTarget.getBoundingClientRect();
+                                if (openMenuId === conv.id) {
+                                  handleOpenMenu(null);
+                                  setMenuPosition(null);
+                                } else {
+                                  handleOpenMenu(conv.id);
+                                  setMenuPosition({
+                                    top: buttonRect.bottom + 4,
+                                    left: buttonRect.right - 160,
+                                  });
+                                }
+                              }}
+                              className="flex items-center justify-center rounded transition-colors"
+                              style={{ 
+                                backgroundColor: openMenuId === conv.id ? '#E3F2FD' : 'rgba(255,255,255,0)',
+                                color: openMenuId === conv.id ? '#1868DB' : '#505258',
+                                height: '32px',
+                                width: '32px'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = openMenuId === conv.id ? '#BBDEFB' : '#EBECF0';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = openMenuId === conv.id ? '#E3F2FD' : 'rgba(255,255,255,0)';
+                                e.currentTarget.style.color = openMenuId === conv.id ? '#1868DB' : '#505258';
+                              }}
+                              onMouseDown={(e) => {
+                                e.currentTarget.style.backgroundColor = openMenuId === conv.id ? '#90CAF9' : '#DFE1E6';
+                              }}
+                              onMouseUp={(e) => {
+                                e.currentTarget.style.backgroundColor = openMenuId === conv.id ? '#BBDEFB' : '#EBECF0';
+                              }}
+                            >
+                              <span
+                                className={headerToolbarIconClass}
+                                aria-hidden
+                                dangerouslySetInnerHTML={{ __html: iconMoreOptionsSvg }}
+                              />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          ) : ( 
+            <>
+              {/* Token counter */}
+              <div className="px-4 py-2 border-b flex items-center justify-between gap-3" style={{ backgroundColor: '#E3F2FD', borderColor: '#BBDEFB' }}>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Tooltip content={activeConversation?.title || 'New Chat'}>
+                    <span className="text-sm font-medium truncate block" style={{ color: '#292A2E' }}>
+                      {activeConversation?.title || 'New Chat'} <span className="font-normal text-xs">({activeConversation?.messages.length || 0} messages)</span>
+                    </span>
+                  </Tooltip>
+                </div>
+                <div className="relative group flex-shrink-0">
+                  <Coins className="w-4 h-4" style={{ color: '#505258' }} />
+                  <div className="absolute right-0 top-full mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Tokens: {conversations.reduce((sum, conv) => sum + conv.totalTokens, 0)} / 1500
+                  </div>
+                </div>
+              </div>
+
+              {/* Wiadomości */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {activeConversation?.messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                        <img src={aiAvatarIcon} alt="AI" className="w-6 h-6 rounded-lg" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${
+                        message.role === "user"
+                          ? "text-white"
+                          : "bg-gray-100 text-gray-900"
+                      }`}
+                      style={message.role === "user" ? { backgroundColor: '#1868DB' } : {}}
+                    >
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    </div>
+                  </div>
+                ))}
+
+                {isThinking && (
+                  <div className="flex gap-3 justify-start">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                      <img src={aiAvatarIcon} alt="AI" className="w-6 h-6 rounded-lg" />
+                    </div>
+                    <div className="bg-gray-100 px-4 py-3 rounded-2xl">
+                      <div className="flex gap-1.5">
+                        <motion.div
+                          className="w-1.5 h-1.5 bg-gray-300 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.8, repeat: Infinity, delay: 0 }}
+                        />
+                        <motion.div
+                          className="w-1.5 h-1.5 bg-gray-300 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+                        />
+                        <motion.div
+                          className="w-1.5 h-1.5 bg-gray-300 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-gray-200 p-4">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder="Chat with Appfire AI"
+                    className="flex-1 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm placeholder:text-gray-400"
+                    style={{ 
+                      '--tw-ring-color': '#1868DB',
+                      border: '1px solid #DFE1E6',
+                      backgroundColor: '#FAFBFC'
+                    } as React.CSSProperties}
+                    disabled={isThinking}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!inputValue.trim() || isThinking}
+                    className="flex items-center justify-center text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    style={{ 
+                      backgroundColor: '#1868DB',
+                      width: '40px',
+                      height: '40px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        e.currentTarget.style.backgroundColor = '#0D47A1';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        e.currentTarget.style.backgroundColor = '#1868DB';
+                      }
+                    }}
+                  >
+                    <Send width="18" height="18" />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Your data is secure and not processed or stored. Errors may occur. Learn more:{" "}
+                  <a href="#" className="underline hover:opacity-80" style={{ color: '#1868DB' }}>
+                    Data Policy
+                  </a>
+                  {" & "}
+                  <a href="#" className="underline hover:opacity-80" style={{ color: '#1868DB' }}>
+                    Security
+                  </a>
+                  .
+                </p>
+              </div>
+            </>
+          )}
+        </motion.div>
+      </Rnd>
+
+      {/* Confirm Dialog dla usuwania */}
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Delete conversation?"
+        message={`Are you sure you want to delete "${confirmDelete?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDeleteConversation(confirmDelete.id);
+            setConfirmDelete(null);
+          }
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {/* Dropdown menu - renderowane przez Portal */}
+      {openMenuId && menuPosition && createPortal(
+        <>
+          {/* Backdrop do zamykania menu */}
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 9998 }}
+            onClick={() => {
+              handleCloseMenu();
+              setMenuPosition(null);
+            }}
+          />
+          <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+            transition={{ duration: 0.15 }}
+            ref={menuRef}
+            className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-40"
+            style={{
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+              zIndex: 9999,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditConversation(openMenuId);
+                handleCloseMenu();
+              }}
+              className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors"
+              style={{ 
+                backgroundColor: 'transparent',
+                color: '#292A2E'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <Edit2 className="w-3.5 h-3.5" style={{ color: '#292A2E' }} />
+              <span>Rename</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShareConversation(openMenuId);
+                handleCloseMenu();
+              }}
+              className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors"
+              style={{ 
+                backgroundColor: 'transparent',
+                color: '#292A2E'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EBECF0'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <Share2 className="w-3.5 h-3.5" style={{ color: '#292A2E' }} />
+              <span>Share</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const conv = conversations.find((c) => c.id === openMenuId);
+                if (conv) {
+                  setConfirmDelete({ id: conv.id, title: conv.title });
+                }
+                handleCloseMenu();
+              }}
+              className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ 
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.backgroundColor = '#FFEBE6';
+                }
+              }}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              disabled={conversations.length === 1}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+          </motion.div>
+        </AnimatePresence>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
