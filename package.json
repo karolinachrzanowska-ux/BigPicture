@@ -2,6 +2,10 @@
   "name": "@figma/my-make-file",
   "private": true,
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:karolinachrzanowska-ux/BigPicture.git"
+  },
   "type": "module",
   "scripts": {
     "build": "vite build",

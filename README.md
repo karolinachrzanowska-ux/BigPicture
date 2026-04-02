@@ -1,11 +1,14 @@
+# AI Chatbot for BigPicture
 
-  # AI Chatbot for BigPicture
+Prototype UI for an AI chat assistant (Vite, React, Tailwind). The original design reference is in Figma: [AI Chatbot for BigPicture](https://www.figma.com/design/5Z0t2qca7nPIiHn1ZLKefh/AI-Chatbot-for-BigPicture).
 
-  This is a code bundle for AI Chatbot for BigPicture. The original project is available at https://www.figma.com/design/5Z0t2qca7nPIiHn1ZLKefh/AI-Chatbot-for-BigPicture.
+## Repository
 
-  ## Running the code
+- **SSH:** `git@github.com:karolinachrzanowska-ux/BigPicture.git`
+- **HTTPS:** https://github.com/karolinachrzanowska-ux/BigPicture.git
 
-  Run `npm i` to install the dependencies.
+## Running the code
 
-  Run `npm run dev` to start the development server.
-  
+1. Install dependencies: `npm i`
+2. Start the dev server: `npm run dev`
+3. Production build: `npm run build`
